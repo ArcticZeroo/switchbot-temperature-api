@@ -1,0 +1,13 @@
+{
+  "apps": [
+    {
+      "name": "switchbot-api",
+      "script": "./target/release/switchbot-api",
+      "args": "serve",
+      "cwd": ".",
+      "autorestart": true,
+      "max_restarts": 10,
+      "restart_delay": 5000
+    }
+  ]
+}
