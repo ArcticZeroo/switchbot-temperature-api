@@ -67,7 +67,7 @@
         const res = await fetch('/api/climate/current');
         if (!res.ok) return;
         const data = await res.json();
-        document.getElementById('cur-temp').textContent = data.temperature.toFixed(1) + '°C';
+        document.getElementById('cur-temp').textContent = (data.temperature * 9/5 + 32).toFixed(1) + '°F';
         document.getElementById('cur-humid').textContent = data.humidity + '%';
         document.getElementById('cur-time').textContent = new Date(data.timestamp).toLocaleString();
         document.getElementById('device-id').textContent = 'Device: ' + data.device_id;
@@ -101,7 +101,7 @@
 
     function renderChart(readings) {
       const labels = readings.map(r => new Date(r.recorded_at));
-      const temps = readings.map(r => r.temperature);
+      const temps = readings.map(r => r.temperature * 9/5 + 32);
       const humids = readings.map(r => r.humidity);
 
       if (chart) chart.destroy();
@@ -112,7 +112,7 @@
           labels,
           datasets: [
             {
-              label: 'Temperature (°C)',
+              label: 'Temperature (°F)',
               data: temps,
               borderColor: '#f97316',
               backgroundColor: 'rgba(249,115,22,0.1)',
@@ -145,7 +145,7 @@
             },
             y: {
               position: 'left',
-              title: { display: true, text: '°C', color: '#f97316' },
+              title: { display: true, text: '°F', color: '#f97316' },
               ticks: { color: '#f97316' },
               grid: { color: '#334155' },
             },
