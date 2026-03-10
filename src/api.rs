@@ -2,7 +2,7 @@ use axum::{
     Router,
     extract::{Query, State},
     http::StatusCode,
-    response::IntoResponse,
+    response::{Html, IntoResponse},
     routing::get,
     Json,
 };
@@ -26,6 +26,7 @@ pub struct AppState {
 
 pub fn router(state: Arc<AppState>) -> Router {
     Router::new()
+        .route("/", get(stats_page))
         .route("/health", get(health))
         .route("/api/climate/current", get(current_climate))
         .route("/api/climate/history", get(climate_history))
@@ -36,6 +37,10 @@ async fn health() -> Json<HealthResponse> {
     Json(HealthResponse {
         status: "ok".to_string(),
     })
+}
+
+async fn stats_page() -> Html<&'static str> {
+    Html(include_str!("stats.html"))
 }
 
 async fn current_climate(

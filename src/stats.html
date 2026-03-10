@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Climate Stats</title>
+  <script src="https://unpkg.com/chart.js@4/dist/chart.umd.js"></script>
+  <script src="https://unpkg.com/chartjs-adapter-date-fns@3/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0f172a; color: #e2e8f0; padding: 1.5rem; }
+    h1 { font-size: 1.4rem; margin-bottom: 0.25rem; }
+    .subtitle { color: #94a3b8; font-size: 0.85rem; margin-bottom: 1.25rem; }
+    .current { display: flex; gap: 1.5rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
+    .card { background: #1e293b; border-radius: 0.75rem; padding: 1.25rem 1.5rem; min-width: 160px; }
+    .card .label { color: #94a3b8; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
+    .card .value { font-size: 2rem; font-weight: 700; margin-top: 0.25rem; }
+    .card .value.temp { color: #f97316; }
+    .card .value.humid { color: #38bdf8; }
+    .controls { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
+    .controls button { background: #1e293b; color: #e2e8f0; border: 1px solid #334155; border-radius: 0.5rem; padding: 0.4rem 1rem; cursor: pointer; font-size: 0.85rem; }
+    .controls button:hover { background: #334155; }
+    .controls button.active { background: #3b82f6; border-color: #3b82f6; }
+    .chart-container { background: #1e293b; border-radius: 0.75rem; padding: 1rem; }
+    canvas { width: 100% !important; }
+    .error { color: #f87171; margin: 1rem 0; }
+    .loading { color: #94a3b8; }
+  </style>
+</head>
+<body>
+  <h1>🌡️ Climate Stats</h1>
+  <p class="subtitle" id="device-id">Loading...</p>
+
+  <div class="current">
+    <div class="card">
+      <div class="label">Temperature</div>
+      <div class="value temp" id="cur-temp">--</div>
+    </div>
+    <div class="card">
+      <div class="label">Humidity</div>
+      <div class="value humid" id="cur-humid">--</div>
+    </div>
+    <div class="card">
+      <div class="label">Last Updated</div>
+      <div class="value" id="cur-time" style="font-size:1rem;color:#94a3b8;">--</div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button data-days="1" class="active">24 Hours</button>
+    <button data-days="3">3 Days</button>
+    <button data-days="7">7 Days</button>
+  </div>
+
+  <div class="chart-container">
+    <canvas id="chart"></canvas>
+  </div>
+
+  <p id="status" class="loading">Loading data...</p>
+
+  <script>
+    const statusEl = document.getElementById('status');
+    let chart;
+
+    async function fetchCurrent() {
+      try {
+        const res = await fetch('/api/climate/current');
+        if (!res.ok) return;
+        const data = await res.json();
+        document.getElementById('cur-temp').textContent = data.temperature.toFixed(1) + '°C';
+        document.getElementById('cur-humid').textContent = data.humidity + '%';
+        document.getElementById('cur-time').textContent = new Date(data.timestamp).toLocaleString();
+        document.getElementById('device-id').textContent = 'Device: ' + data.device_id;
+      } catch (e) {
+        console.warn('Failed to fetch current reading', e);
+      }
+    }
+
+    async function fetchHistory(days) {
+      statusEl.textContent = 'Loading...';
+      statusEl.className = 'loading';
+      const end = new Date().toISOString();
+      const start = new Date(Date.now() - days * 86400000).toISOString();
+      try {
+        const res = await fetch(`/api/climate/history?start=${start}&end=${end}`);
+        if (!res.ok) {
+          const err = await res.json();
+          statusEl.textContent = 'Error: ' + err.error;
+          statusEl.className = 'error';
+          return;
+        }
+        const data = await res.json();
+        renderChart(data.readings);
+        statusEl.textContent = data.count + ' readings';
+        statusEl.className = '';
+      } catch (e) {
+        statusEl.textContent = 'Failed to load data';
+        statusEl.className = 'error';
+      }
+    }
+
+    function renderChart(readings) {
+      const labels = readings.map(r => new Date(r.recorded_at));
+      const temps = readings.map(r => r.temperature);
+      const humids = readings.map(r => r.humidity);
+
+      if (chart) chart.destroy();
+
+      chart = new Chart(document.getElementById('chart'), {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [
+            {
+              label: 'Temperature (°C)',
+              data: temps,
+              borderColor: '#f97316',
+              backgroundColor: 'rgba(249,115,22,0.1)',
+              yAxisID: 'y',
+              tension: 0.3,
+              pointRadius: 2,
+              fill: true,
+            },
+            {
+              label: 'Humidity (%)',
+              data: humids,
+              borderColor: '#38bdf8',
+              backgroundColor: 'rgba(56,189,248,0.1)',
+              yAxisID: 'y1',
+              tension: 0.3,
+              pointRadius: 2,
+              fill: true,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          interaction: { mode: 'index', intersect: false },
+          scales: {
+            x: {
+              type: 'time',
+              time: { tooltipFormat: 'MMM d, h:mm a' },
+              ticks: { color: '#94a3b8' },
+              grid: { color: '#1e293b' },
+            },
+            y: {
+              position: 'left',
+              title: { display: true, text: '°C', color: '#f97316' },
+              ticks: { color: '#f97316' },
+              grid: { color: '#334155' },
+            },
+            y1: {
+              position: 'right',
+              title: { display: true, text: '%', color: '#38bdf8' },
+              ticks: { color: '#38bdf8' },
+              grid: { drawOnChartArea: false },
+              min: 0,
+              max: 100,
+            },
+          },
+          plugins: {
+            legend: { labels: { color: '#e2e8f0' } },
+          },
+        },
+      });
+    }
+
+    document.querySelectorAll('.controls button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.controls button').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        fetchHistory(parseInt(btn.dataset.days));
+      });
+    });
+
+    fetchCurrent();
+    fetchHistory(1);
+  </script>
+</body>
+</html>
